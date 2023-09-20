@@ -26,4 +26,14 @@ contract WETH9Invariants is Test {
             address(handler).balance + weth.totalSupply()
         );
     }
+
+    // The WETH contract's Ether balance should always
+    // equal the sum of all the individual deposits
+    // minus all the individual withdrawals
+    function invariant_solvencyDeposits() public {
+        assertEq(
+            address(weth).balance,
+            handler.ghost_depositSum() - handler.ghost_withdrawSum()
+        );
+    }
 }
