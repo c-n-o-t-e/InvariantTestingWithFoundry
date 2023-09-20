@@ -16,6 +16,8 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     uint256 public ghost_depositSum;
     uint256 public ghost_withdrawSum;
 
+    address currentActor;
+
     uint256 public constant ETH_SUPPLY = 120_500_000 ether;
 
     constructor(WETH9 _weth) {
@@ -24,23 +26,24 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     modifier createActor() {
-        _actors.add(msg.sender);
+        currentActor = msg.sender;
+        _actors.add(currentActor);
         _;
     }
 
     function deposit(uint256 amount) public createActor {
         amount = bound(amount, 0, address(this).balance);
-        _pay(msg.sender, amount);
+        _pay(currentActor, amount);
 
-        vm.prank(msg.sender);
+        vm.prank(currentActor);
         weth.deposit{value: amount}();
 
         ghost_depositSum += amount;
     }
 
-    function withdraw(uint256 amount) public {
-        amount = bound(amount, 0, weth.balanceOf(msg.sender));
-        vm.startPrank(msg.sender);
+    function withdraw(uint256 amount) public createActor {
+        amount = bound(amount, 0, weth.balanceOf(currentActor));
+        vm.startPrank(currentActor);
 
         weth.withdraw(amount);
         _pay(address(this), amount);
@@ -51,9 +54,9 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
     function sendFallback(uint256 amount) public createActor {
         amount = bound(amount, 0, address(this).balance);
-        _pay(msg.sender, amount);
+        _pay(currentActor, amount);
 
-        vm.prank(msg.sender);
+        vm.prank(currentActor);
         (bool success, ) = address(weth).call{value: amount}("");
 
         require(success, "sendFallback failed");
