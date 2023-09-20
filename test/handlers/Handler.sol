@@ -5,8 +5,12 @@ import {WETH9} from "../../src/WETH9.sol";
 import {CommonBase} from "forge-std/Base.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
 import {StdUtils} from "forge-std/StdUtils.sol";
+import {AddressSet, LibAddressSet} from "../helpers/LibAddressSet.sol";
 
 contract Handler is CommonBase, StdCheats, StdUtils {
+    using LibAddressSet for AddressSet;
+    AddressSet internal _actors;
+
     WETH9 public weth;
 
     uint256 public ghost_depositSum;
@@ -19,7 +23,12 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         deal(address(this), ETH_SUPPLY);
     }
 
-    function deposit(uint256 amount) public {
+    modifier createActor() {
+        _actors.add(msg.sender);
+        _;
+    }
+
+    function deposit(uint256 amount) public createActor {
         amount = bound(amount, 0, address(this).balance);
         _pay(msg.sender, amount);
 
@@ -40,7 +49,7 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         ghost_withdrawSum += amount;
     }
 
-    function sendFallback(uint256 amount) public {
+    function sendFallback(uint256 amount) public createActor {
         amount = bound(amount, 0, address(this).balance);
         _pay(msg.sender, amount);
 
@@ -49,6 +58,10 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
         require(success, "sendFallback failed");
         ghost_depositSum += amount;
+    }
+
+    function actors() external view returns (address[] memory) {
+        return _actors.addrs;
     }
 
     function _pay(address to, uint256 amount) internal {
