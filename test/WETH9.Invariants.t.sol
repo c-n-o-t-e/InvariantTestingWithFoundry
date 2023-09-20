@@ -15,4 +15,15 @@ contract WETH9Invariants is Test {
 
         targetContract(address(handler));
     }
+
+    // ETH can only be wrapped into WETH, WETH can only
+    // be unwrapped back into ETH. The sum of the Handler's
+    // ETH balance plus the WETH totalSupply() should always
+    // equal the total ETH_SUPPLY.
+    function invariant_badInvariantThisShouldFail() public {
+        assertEq(
+            handler.ETH_SUPPLY(),
+            address(handler).balance + weth.totalSupply()
+        );
+    }
 }
