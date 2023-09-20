@@ -21,21 +21,39 @@ contract Handler is CommonBase, StdCheats, StdUtils {
 
     function deposit(uint256 amount) public {
         amount = bound(amount, 0, address(this).balance);
+        _pay(msg.sender, amount);
+
+        vm.prank(msg.sender);
         weth.deposit{value: amount}();
+
         ghost_depositSum += amount;
     }
 
     function withdraw(uint256 amount) public {
-        amount = bound(amount, 0, weth.balanceOf(address(this)));
+        amount = bound(amount, 0, weth.balanceOf(msg.sender));
+        vm.startPrank(msg.sender);
+
         weth.withdraw(amount);
+        _pay(address(this), amount);
+
+        vm.stopPrank();
         ghost_withdrawSum += amount;
     }
 
     function sendFallback(uint256 amount) public {
         amount = bound(amount, 0, address(this).balance);
+        _pay(msg.sender, amount);
+
+        vm.prank(msg.sender);
         (bool success, ) = address(weth).call{value: amount}("");
+
         require(success, "sendFallback failed");
         ghost_depositSum += amount;
+    }
+
+    function _pay(address to, uint256 amount) internal {
+        (bool s, ) = to.call{value: amount}("");
+        require(s, "pay() failed");
     }
 
     receive() external payable {}
