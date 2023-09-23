@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {WETH9} from "../src/WETH9.sol";
 import {Handler} from "./handlers/Handler.sol";
+import {AddressPair} from "./helpers/LibAddressSet.sol";
 import {Test, console2 as console} from "forge-std/Test.sol";
 
 contract WETH9Invariants is Test {
@@ -46,5 +47,28 @@ contract WETH9Invariants is Test {
             sumOfBalances += weth.balanceOf(actors[i]);
         }
         assertEq(address(weth).balance, sumOfBalances);
+    }
+
+    // Ensures all WETH allowance balance should always be
+    // at least as much as the sum of individual approved balances.
+    function invariant_solvencyApprovals() public {
+        uint256 sumOfApprovedBalances;
+        AddressPair[] memory actors = handler.approvalActors();
+
+        for (uint256 i; i < actors.length; ++i) {
+            sumOfApprovedBalances += weth.allowance(
+                actors[i].addr1,
+                actors[i].addr2
+            );
+        }
+
+        assertEq(
+            handler.ghost_approvedSum() - handler.ghost_UsedApprovedSum(),
+            sumOfApprovedBalances
+        );
+    }
+
+    function invariant_callSummary() public view {
+        handler.callSummary();
     }
 }
