@@ -14,6 +14,18 @@ contract WETH9Invariants is Test {
         weth = new WETH9();
         handler = new Handler(weth);
 
+        bytes4[] memory selectors = new bytes4[](6);
+        selectors[0] = Handler.deposit.selector;
+        selectors[1] = Handler.withdraw.selector;
+        selectors[2] = Handler.sendFallback.selector;
+        selectors[3] = Handler.approve.selector;
+        selectors[4] = Handler.transfer.selector;
+        selectors[5] = Handler.transferFrom.selector;
+
+        targetSelector(
+            FuzzSelector({addr: address(handler), selectors: selectors})
+        );
+
         targetContract(address(handler));
     }
 
