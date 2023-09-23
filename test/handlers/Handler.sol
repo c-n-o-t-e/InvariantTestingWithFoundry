@@ -103,13 +103,96 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         }
     }
 
+    function approve(
+        uint256 actorSeed,
+        uint256 spenderSeed,
+        uint256 amount
+    ) public useActor(actorSeed) countCall("approve") {
+        amount = bound(amount, 0, type(uint248).max - ghost_approvedSum);
+
+        if (amount == 0) ghost_zeroApprovals++;
+        address spender = _actors.rand(spenderSeed);
+
+        if (currentActor != spender) {
+            if (weth.allowance(currentActor, spender) > 0) {} else {
+                vm.prank(currentActor);
+                weth.approve(spender, amount);
+
+                _actors.add(currentActor, spender);
+                ghost_approvedSum += amount;
+            }
+        }
+    }
+
+    function transferFrom(
+        uint256 actorSeed,
+        uint256 fromSeed,
+        uint256 amount,
+        address to
+    ) external useActor(actorSeed) countCall("transferFrom") {
+        address from = _actors.rand(fromSeed);
+        _actors.add(to);
+
+        if (from != currentActor && weth.balanceOf(from) > 0) {
+            amount = bound(amount, 0, weth.balanceOf(from));
+            vm.startPrank(from);
+
+            if (weth.allowance(from, currentActor) > 0) {
+                amount = bound(amount, 0, weth.allowance(from, currentActor));
+            } else {
+                amount = bound(
+                    amount,
+                    0,
+                    type(uint248).max - ghost_approvedSum
+                );
+                calls["approve"]++;
+                weth.approve(currentActor, amount);
+                if (amount == 0) ghost_zeroApprovals++;
+
+                _actors.add(from, currentActor);
+                ghost_approvedSum += amount;
+            }
+
+            vm.stopPrank();
+            vm.startPrank(currentActor);
+
+            if (amount == 0) ghost_zeroTransferFroms++;
+
+            weth.transferFrom(from, to, amount);
+            vm.stopPrank();
+
+            ghost_UsedApprovedSum += amount;
+        }
+    }
+
     function actors() external view returns (address[] memory) {
         return _actors.addrs;
+    }
+
+    function approvalActors() external view returns (AddressPair[] memory) {
+        return _actors.addressPairs;
     }
 
     function _pay(address to, uint256 amount) internal {
         (bool s, ) = to.call{value: amount}("");
         require(s, "pay() failed");
+    }
+
+    function callSummary() external view {
+        console.log("Call summary:");
+
+        console.log("-------------------");
+        console.log("approve", calls["approve"]);
+        console.log("deposit", calls["deposit"]);
+        console.log("withdraw", calls["withdraw"]);
+        console.log("sendFallback", calls["sendFallback"]);
+        console.log("transferFrom", calls["transferFrom"]);
+
+        console.log("-------------------");
+        console.log("Zero deposits:", ghost_zeroDeposits);
+        console.log("Zero approvals:", ghost_zeroApprovals);
+        console.log("Zero withdrawals:", ghost_zeroWithdrawals);
+        console.log("Zero transferFroms:", ghost_zeroTransferFroms);
     }
 
     receive() external payable {}
