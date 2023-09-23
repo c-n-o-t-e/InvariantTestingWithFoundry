@@ -56,51 +56,46 @@ contract Handler is CommonBase, StdCheats, StdUtils {
     }
 
     function deposit(uint256 amount) public createActor countCall("deposit") {
-        if (amount > 0) {
-            amount = bound(amount, 0, address(this).balance);
-            if (amount == 0) ghost_zeroDeposits++;
-            _pay(currentActor, amount);
+        amount = bound(amount, 0, address(this).balance);
+        if (amount == 0) ghost_zeroDeposits++;
+        _pay(currentActor, amount);
 
-            vm.prank(currentActor);
-            weth.deposit{value: amount}();
+        vm.prank(currentActor);
+        weth.deposit{value: amount}();
 
-            ghost_depositSum += amount;
-        }
+        ghost_depositSum += amount;
     }
 
     function withdraw(
         uint256 amount,
         uint actorSeed
     ) public useActor(actorSeed) countCall("withdraw") {
-        if (amount > 0) {
-            amount = bound(amount, 0, weth.balanceOf(currentActor));
-            if (amount == 0) ghost_zeroWithdrawals++;
+        amount = bound(amount, 0, weth.balanceOf(currentActor));
+        if (amount == 0) ghost_zeroWithdrawals++;
 
-            vm.startPrank(currentActor);
+        vm.startPrank(currentActor);
 
-            weth.withdraw(amount);
-            _pay(address(this), amount);
+        weth.withdraw(amount);
+        _pay(address(this), amount);
 
-            vm.stopPrank();
-            ghost_withdrawSum += amount;
-        }
+        vm.stopPrank();
+        ghost_withdrawSum += amount;
     }
 
     function sendFallback(
         uint256 amount
     ) public createActor countCall("sendFallback") {
         amount = bound(amount, 0, address(this).balance);
-        if (amount > 0) {
-            if (amount == 0) ghost_zeroDeposits++;
-            _pay(currentActor, amount);
 
-            vm.startPrank(currentActor);
-            (bool success, ) = address(weth).call{value: amount}("");
+        if (amount == 0) ghost_zeroDeposits++;
+        _pay(currentActor, amount);
 
-            require(success, "sendFallback failed");
-            vm.stopPrank();
-            ghost_depositSum += amount;
-        }
+        vm.startPrank(currentActor);
+        (bool success, ) = address(weth).call{value: amount}("");
+
+        require(success, "sendFallback failed");
+        vm.stopPrank();
+        ghost_depositSum += amount;
     }
 
     function approve(
@@ -124,17 +119,38 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         }
     }
 
+    function transfer(
+        uint256 actorSeed,
+        uint256 toSeed,
+        uint256 amount
+    ) external useActor(actorSeed) countCall("transfer") {
+        amount = bound(amount, 0, weth.balanceOf(currentActor));
+        address to = _actors.rand(toSeed);
+
+        vm.startPrank(currentActor);
+        weth.transfer(to, amount);
+
+        if (amount == 0) ghost_zeroTransfers++;
+        vm.stopPrank();
+    }
+
     function transferFrom(
         uint256 actorSeed,
         uint256 fromSeed,
         uint256 amount,
-        address to
+        uint256 toSeed
     ) external useActor(actorSeed) countCall("transferFrom") {
+        address to = _actors.rand(toSeed);
         address from = _actors.rand(fromSeed);
-        _actors.add(to);
+        amount = bound(amount, 0, weth.balanceOf(from));
 
-        if (from != currentActor && weth.balanceOf(from) > 0) {
-            amount = bound(amount, 0, weth.balanceOf(from));
+        if (from == currentActor) {
+            vm.startPrank(currentActor);
+            if (amount == 0) ghost_zeroTransferFroms++;
+
+            weth.transferFrom(from, to, amount);
+            vm.stopPrank();
+        } else {
             vm.startPrank(from);
 
             if (weth.allowance(from, currentActor) > 0) {
@@ -145,8 +161,10 @@ contract Handler is CommonBase, StdCheats, StdUtils {
                     0,
                     type(uint248).max - ghost_approvedSum
                 );
+
                 calls["approve"]++;
                 weth.approve(currentActor, amount);
+
                 if (amount == 0) ghost_zeroApprovals++;
 
                 _actors.add(from, currentActor);
@@ -185,12 +203,14 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         console.log("approve", calls["approve"]);
         console.log("deposit", calls["deposit"]);
         console.log("withdraw", calls["withdraw"]);
+        console.log("transfer", calls["transfer"]);
         console.log("sendFallback", calls["sendFallback"]);
         console.log("transferFrom", calls["transferFrom"]);
 
         console.log("-------------------");
         console.log("Zero deposits:", ghost_zeroDeposits);
         console.log("Zero approvals:", ghost_zeroApprovals);
+        console.log("Zero transfers:", ghost_zeroTransfers);
         console.log("Zero withdrawals:", ghost_zeroWithdrawals);
         console.log("Zero transferFroms:", ghost_zeroTransferFroms);
     }
