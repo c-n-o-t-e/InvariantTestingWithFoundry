@@ -55,5 +55,62 @@ contract Handler is CommonBase, StdCheats, StdUtils {
         _;
     }
 
+    function deposit(uint256 amount) public createActor countCall("deposit") {
+        if (amount > 0) {
+            amount = bound(amount, 0, address(this).balance);
+            if (amount == 0) ghost_zeroDeposits++;
+            _pay(currentActor, amount);
+
+            vm.prank(currentActor);
+            weth.deposit{value: amount}();
+
+            ghost_depositSum += amount;
+        }
+    }
+
+    function withdraw(
+        uint256 amount,
+        uint actorSeed
+    ) public useActor(actorSeed) countCall("withdraw") {
+        if (amount > 0) {
+            amount = bound(amount, 0, weth.balanceOf(currentActor));
+            if (amount == 0) ghost_zeroWithdrawals++;
+
+            vm.startPrank(currentActor);
+
+            weth.withdraw(amount);
+            _pay(address(this), amount);
+
+            vm.stopPrank();
+            ghost_withdrawSum += amount;
+        }
+    }
+
+    function sendFallback(
+        uint256 amount
+    ) public createActor countCall("sendFallback") {
+        amount = bound(amount, 0, address(this).balance);
+        if (amount > 0) {
+            if (amount == 0) ghost_zeroDeposits++;
+            _pay(currentActor, amount);
+
+            vm.startPrank(currentActor);
+            (bool success, ) = address(weth).call{value: amount}("");
+
+            require(success, "sendFallback failed");
+            vm.stopPrank();
+            ghost_depositSum += amount;
+        }
+    }
+
+    function actors() external view returns (address[] memory) {
+        return _actors.addrs;
+    }
+
+    function _pay(address to, uint256 amount) internal {
+        (bool s, ) = to.call{value: amount}("");
+        require(s, "pay() failed");
+    }
+
     receive() external payable {}
 }
