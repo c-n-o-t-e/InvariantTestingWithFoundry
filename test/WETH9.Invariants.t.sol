@@ -21,7 +21,7 @@ contract WETH9Invariants is Test {
     // be unwrapped back into ETH. The sum of the Handler's
     // ETH balance plus the WETH totalSupply() should always
     // equal the total ETH_SUPPLY.
-    function invariant_badInvariantThisShouldFail() public {
+    function invariant_ensureEthSupplyIsCorrect() public {
         assertEq(
             handler.ETH_SUPPLY(),
             address(handler).balance + weth.totalSupply()
